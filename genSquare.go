@@ -20,28 +20,27 @@ func main() {
 
 	portaudio.Initialize()
 	defer portaudio.Terminate()
-	s := newSweep(arg1, arg1, sampleRate)
+	s := newSquare(arg1, sampleRate)
 	defer s.Close()
 	chk(s.Start())
 	time.Sleep(2 * time.Second)
 	chk(s.Stop())
 }
 
-type stereoSine struct {
+type monoSquare struct {
 	*portaudio.Stream
 	stepL, phaseL float64
-	stepR, phaseR float64
 }
 
-func newSweep(freqStart, freqEnd, sampleRate float64) *stereoSine {
-	s := &stereoSine{nil, freqStart / sampleRate, 0, freqEnd / sampleRate, 0}
+func newSquare(freqStart, sampleRate float64) *monoSquare {
+	s := &monoSquare{nil, freqStart / sampleRate, 0}
 	var err error
 	s.Stream, err = portaudio.OpenDefaultStream(0, 1, sampleRate, 0, s.processAudio)
 	chk(err)
 	return s
 }
 
-func (g *stereoSine) processAudio(out [][]float32) {
+func (g *monoSquare) processAudio(out [][]float32) {
 	for i := range out[0] {
 		testVal := float32(math.Sin(2 * math.Pi * g.phaseL))
 		out[0][i] = float32(1)
