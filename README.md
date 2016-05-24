@@ -21,7 +21,4 @@ go run stereoSine
 
 To generate A:
 
-go run stereoSineProj.go 440
-
-    Status API Training Shop Blog About 
-
+go run genSine.go 440
