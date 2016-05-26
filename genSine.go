@@ -18,12 +18,18 @@ func main() {
 		fmt.Printf("Error")
 	}
 
+	duration, err := strconv.ParseInt(os.Args[2], 10, 32)
+
+	if err != nil {
+		fmt.Printf("Error")
+	}
+
 	portaudio.Initialize()
 	defer portaudio.Terminate()
 	s := newStereoSine(arg, arg, sampleRate)
 	defer s.Close()
 	chk(s.Start())
-	time.Sleep(2 * time.Second)
+	time.Sleep(time.Duration(duration) * time.Second)
 	chk(s.Stop())
 }
 

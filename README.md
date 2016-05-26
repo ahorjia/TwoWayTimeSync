@@ -22,9 +22,9 @@ go run stereoSine
 
 To generate A:
 
-go run genSine.go 440
+go run genSine.go 440 5
 
-go run genSquare.go 440
+go run genSquare.go 440 5
 
 ===============================================
 Examples:
