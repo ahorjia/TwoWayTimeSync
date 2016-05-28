@@ -45,9 +45,12 @@ func printtime(t time.Time, conn net.Conn) int64 {
 	t2, _ := strconv.ParseInt(times[1],10,64)
 	t3, _ := strconv.ParseInt(times[2],10,64)
 	t4 := time.Now().UnixNano()
-
-	delta := (t4 - t3 + t2 - t1) / 2.0
-
+        
+        fmt.Printf("%v,%v,%v,%v\n",t1,t2,t3,t4);
+        A := t2 - t1;
+        B := t4 - t3;
+	//delta := (t4 - t3 + t2 - t1) / 2.0
+        delta := (A - B)/ 2.0
 	return delta
 	//	fmt.Println(delta)
 	//	message = fmt.Sprintf("%v,%v,%v,%v\n",
