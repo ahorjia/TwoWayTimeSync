@@ -7,37 +7,44 @@ import "strings"
 import "strconv"
 import "bufio"
 import "os"
+import "log"
 
-func tick(d time.Duration, f func(time.Time, net.Conn) int, conn net.Conn) {
-	counter := 0
-	sum := 0
+func tick(d time.Duration, f func(time.Time, net.Conn) int64, conn net.Conn) {
+	counter := 0.0
+        var sum float64
+ 	sum = 0
 	for x := range time.Tick(d) {
 		retVal := f(x, conn)
 		counter += 1
-		sum += retVal
-		fmt.Println(sum / counter)
+		sum += float64(retVal)
+                currentMean := sum/counter;              
+		fmt.Printf("current delta: %v, mean:%v\n",retVal,currentMean)
 		//		fmt.Println(counter)
 		//		fmt.Println(sum)
 	}
 }
 
-func printtime(t time.Time, conn net.Conn) int {
+func printtime(t time.Time, conn net.Conn) int64 {
 	//	t0 := time.Now()
 	//	text := strings.ToUpper(t0.Format("02:Jan:2006:15:04:05.999999"))
-	text := strconv.Itoa(time.Now().Nanosecond())
+	text := strconv.FormatInt(time.Now().UnixNano(),10)
 	fmt.Fprintf(conn, text+"\n")
 
-	message, _ := bufio.NewReader(conn).ReadString('\n')
+	message, connErr := bufio.NewReader(conn).ReadString('\n')
+        if(connErr != nil){
+            quitString := fmt.Sprintf("Error connecting to server: %v\n",connErr);
+            log.Fatal(quitString);
+        }
 	message = strings.TrimSpace(message)
 
 	//	t1 := time.Now()
 	//	text1 := strings.ToUpper(t1.Format("02:Jan:2006:15:04:05.999999"))
 	//	fmt.Printf("Local time: %v; received server time: %v", text1, message)
 	times := strings.Split(message, ",")
-	t1, _ := strconv.Atoi(times[0])
-	t2, _ := strconv.Atoi(times[1])
-	t3, _ := strconv.Atoi(times[2])
-	t4 := time.Now().Nanosecond()
+	t1, _ := strconv.ParseInt(times[0],10,64)
+	t2, _ := strconv.ParseInt(times[1],10,64)
+	t3, _ := strconv.ParseInt(times[2],10,64)
+	t4 := time.Now().UnixNano()
 
 	delta := (t4 - t3 + t2 - t1) / 2.0
 

@@ -21,22 +21,23 @@ func main() {
 
 	//	for index := 0; index < numTries; index++ {
 	for {
-		beforeMessageTime := time.Now()
+		
 		clientTimeMessage, readErr := bufio.NewReader(conn).ReadString('\n')
-                if(readErr != nil){
-                    fmt.Printf("Error reading from connection: %v\n",readErr);
-                    break;
-                }
-		clientTimeMessage = strings.TrimSpace(clientTimeMessage)
+        receivedMessageTime := time.Now()
+		if(readErr != nil){
+            fmt.Printf("Error reading connection: %v\n",readErr);
+            break;
+        }
+        clientTimeMessage = strings.TrimSpace(clientTimeMessage)
 
 		//		serverCurrenTimeText := strings.ToUpper(serverCurrentTime.Format("02:Jan:2006:15:04:05.999999"))
 		//		fmt.Printf("Local time: %v, received client time: %v", serverCurrenTimeText, message)
 
 		message := fmt.Sprintf("%v,%v,%v\n", clientTimeMessage,
-			strconv.Itoa(beforeMessageTime.Nanosecond()),
-			strconv.Itoa(time.Now().Nanosecond()))
+			strconv.FormatInt(receivedMessageTime.UnixNano(),10),
+			strconv.FormatInt(time.Now().UnixNano(),10),)
 
-		//		fmt.Println(message)
+		fmt.Println(message)
 		fmt.Fprintf(conn, message)
 	}
 }
