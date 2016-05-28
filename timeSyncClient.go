@@ -6,6 +6,7 @@ import "time"
 import "strings"
 import "strconv"
 import "bufio"
+import "os"
 
 func tick(d time.Duration, f func(time.Time, net.Conn) int, conn net.Conn) {
 	counter := 0
@@ -52,7 +53,19 @@ func printtime(t time.Time, conn net.Conn) int {
 }
 
 func main() {
+        
 	// conn, _ := net.Dial("tcp", "[2001::fa1a]:8081")
-	conn, _ := net.Dial("tcp", "127.0.0.1:8081")
-	tick(time.Second, printtime, conn)
+        numArgs := len(os.Args);
+        address :=  "127.0.0.1" 
+        if(numArgs >= 2){
+           address = os.Args[1]
+        }
+        fmt.Printf("Connecting to address %s\n",address);
+        conn, err := net.Dial("tcp", address + ":8081" )
+        if(err == nil){
+          tick(time.Second, printtime, conn)
+        }else{
+          fmt.Printf("Error connecting to server %v: %v\n",address,err);
+        }
 }
+

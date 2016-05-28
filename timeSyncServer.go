@@ -22,7 +22,11 @@ func main() {
 	//	for index := 0; index < numTries; index++ {
 	for {
 		beforeMessageTime := time.Now()
-		clientTimeMessage, _ := bufio.NewReader(conn).ReadString('\n')
+		clientTimeMessage, readErr := bufio.NewReader(conn).ReadString('\n')
+                if(readErr != nil){
+                    fmt.Printf("Error reading from connection: %v\n",readErr);
+                    break;
+                }
 		clientTimeMessage = strings.TrimSpace(clientTimeMessage)
 
 		//		serverCurrenTimeText := strings.ToUpper(serverCurrentTime.Format("02:Jan:2006:15:04:05.999999"))
