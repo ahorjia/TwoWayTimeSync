@@ -25,7 +25,9 @@ To generate A:
 go run genSine.go 440 5
 
 go run genSquare.go 440 5
-
+===============================================
+To run twoWayUDPApps run App2 first
 ===============================================
 Examples:
 http://portaudio.com/docs/v19-doxydocs-dev/group__test__src.html
+
