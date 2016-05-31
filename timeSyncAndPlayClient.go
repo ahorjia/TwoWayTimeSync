@@ -9,17 +9,24 @@ import "bufio"
 import "os"
 import "log"
 
-func sync(d time.Duration, f func(time.Time, net.Conn) int64, conn net.Conn) {
+func syncTime(d time.Duration, f func(time.Time, net.Conn) int64, conn net.Conn) {
 	counter := 0.0
 	var sum float64
 	sum = 0
-	for x := range time.Tick(d) {
-		retVal := f(x, conn)
-		counter += 1
-		sum += float64(retVal)
-		currentMean := sum / counter
-		fmt.Printf("current delta: %v, mean:%v\n", retVal, currentMean)
-	}
+	ticker := time.NewTicker(d)
+	go func() {
+		for x := range ticker.C {
+			retVal := f(x, conn)
+			counter += 1
+			sum += float64(retVal)
+			currentMean := sum / counter
+			fmt.Printf("current delta: %v, mean:%v\n", retVal, currentMean)
+		}
+	}()
+
+	time.Sleep(d * 5)
+	ticker.Stop()
+	fmt.Println("Ticker Done!")
 }
 
 func printtime(t time.Time, conn net.Conn) int64 {
@@ -55,7 +62,13 @@ func main() {
 	fmt.Printf("Connecting to address %s\n", address)
 	conn, err := net.Dial("tcp", address+":8081")
 	if err == nil {
-		sync(time.Second*2, printtime, conn)
+		var a Audio
+		a.initialize()
+		defer a.close()
+		syncTime(time.Second*2, printtime, conn)
+		fmt.Println("Sending playtime...")
+		fmt.Fprintf(conn, "PLAYTIME")
+		a.play(440, 2, 0)
 	} else {
 		fmt.Printf("Error connecting to server %v: %v\n", address, err)
 	}
