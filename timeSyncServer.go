@@ -33,9 +33,10 @@ func main() {
 		//		serverCurrenTimeText := strings.ToUpper(serverCurrentTime.Format("02:Jan:2006:15:04:05.999999"))
 		//		fmt.Printf("Local time: %v, received client time: %v", serverCurrenTimeText, message)
 
-		message := fmt.Sprintf("%v,%v,%v\n", clientTimeMessage,
+		message := fmt.Sprintf("%v,%v,%v,%v\n", clientTimeMessage,
 			strconv.FormatInt(receivedMessageTime.UnixNano(),10),
-			strconv.FormatInt(time.Now().UnixNano(),10),)
+			strconv.FormatInt(time.Now().UnixNano(),10),
+            time.Now().UnixNano()+500000000)
 
 		fmt.Println(message)
 		fmt.Fprintf(conn, message)

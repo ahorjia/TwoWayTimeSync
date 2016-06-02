@@ -10,6 +10,8 @@ import (
         "bufio"
         "strconv"
         "strings"
+        "portaudio"
+        "math"
         )
 
 // Struct and enum declarations
@@ -32,11 +34,12 @@ const (
 type slaveMessage struct{
     messageType int
     data1 float64
-    data2 float64
+    data2 int64
 }
 
 func slaveStateMachine(audioChan chan slaveMessage, syncChan chan slaveMessage, syncControlChan chan slaveMessage) {
     myState := STATE_SLAVE_CALIBRATION;
+    nextState := myState;
     calibrationDone := false
     var currentMessage slaveMessage;
     audioAmplitudeMasterSlave := 1.0;
@@ -44,16 +47,23 @@ func slaveStateMachine(audioChan chan slaveMessage, syncChan chan slaveMessage, 
     audioTimeMasterSlave := 0.0;
     audioTimeSlaveSlave := 0.0;
     var timeDelta int64 = 0
+    var nextPlayTimeServer int64 = 0
+    var nextPlayTimeClient int64 = 0
+    s := newStereoSine(440, 440, sampleRate,math.Pi/2)
+	defer s.Close()
 
     for {
         switch{
             case myState == STATE_SLAVE_CALIBRATION:
+                nextState = myState;
                 select{
                 case currentMessage = <-audioChan:
                     fmt.Printf("State %v, audioChan Received: %v,%v\n",myState,currentMessage.data1,currentMessage.data2);
                 case currentMessage = <-syncChan:
                     fmt.Printf("State %v, Unexpected syncChan Received: %v,%v\n",myState,currentMessage.data1,currentMessage.data2);
                     timeDelta = int64(currentMessage.data1);
+                    nextPlayTimeServer = currentMessage.data2;
+                    calibrationDone = true
                 case <- time.After(500*time.Millisecond):
                     fmt.Printf("Slave State: %v, Time Delta %v, Ams %v, Tms %v, Ass %v, Tss %v\n", myState, timeDelta, audioAmplitudeMasterSlave, audioTimeMasterSlave, audioAmplitudeSlaveSlave, audioTimeSlaveSlave);
                
@@ -62,25 +72,34 @@ func slaveStateMachine(audioChan chan slaveMessage, syncChan chan slaveMessage, 
                 if(calibrationDone){
                    syncBeginMessage := slaveMessage{MESSAGE_SYNCHRONIZATION_BEGIN,0,0}
                    syncControlChan <-syncBeginMessage;
+                   nextState = STATE_SLAVE_MEASUREMENT;
                 }
             case myState == STATE_SLAVE_MEASUREMENT:
+                nextState = myState;
                 select{
                 case currentMessage = <-audioChan:
                     fmt.Printf("State %v, audioChan Received: %v,%v\n",myState,currentMessage.data1,currentMessage.data2);
+                    nextState = STATE_SLAVE_CANCELLATION;
                 case currentMessage = <-syncChan:
                     fmt.Printf("State %v, syncChan Received: %v,%v\n",myState,currentMessage.data1,currentMessage.data2);
                     timeDelta = int64(currentMessage.data1);
+                    nextPlayTimeServer = currentMessage.data2;
                 case <- time.After(500*time.Millisecond):
                     fmt.Printf("Slave State: %v, Time Delta %v, Ams %v, Tms %v, Ass %v, Tss %v\n", myState, timeDelta, audioAmplitudeMasterSlave, audioTimeMasterSlave, audioAmplitudeSlaveSlave, audioTimeSlaveSlave);
                
                 }
             case myState == STATE_SLAVE_CANCELLATION:
+                nextState = myState;
                 select{
                 case currentMessage = <-audioChan:
                     fmt.Printf("State %v, audioChan Received: %v,%v\n",myState,currentMessage.data1,currentMessage.data2);
+                    nextState = STATE_SLAVE_MEASUREMENT;
                 case currentMessage = <-syncChan:
                     fmt.Printf("State %v, syncChan Received: %v,%v\n",myState,currentMessage.data1,currentMessage.data2);
                     timeDelta = int64(currentMessage.data1);
+                    nextPlayTimeServer = currentMessage.data2;
+                    nextPlayTimeClient = nextPlayTimeServer - timeDelta;
+                    s.playAt(nextPlayTimeClient);
                 case <- time.After(500*time.Millisecond):
                     fmt.Printf("Slave State: %v, Time Delta %v, Ams %v, Tms %v, Ass %v, Tss %v\n", myState, timeDelta, audioAmplitudeMasterSlave, audioTimeMasterSlave, audioAmplitudeSlaveSlave, audioTimeSlaveSlave);
                
@@ -89,10 +108,11 @@ func slaveStateMachine(audioChan chan slaveMessage, syncChan chan slaveMessage, 
                 errorMessage := fmt.Sprintf("Unknown Slave State %v\n:", myState);
                 log.Fatal(errorMessage);
         }
+        myState = nextState;
    }
 }
 
-func synchronizerThread(inChan chan slaveMessage, outChan chan slaveMessage,d time.Duration, f func(time.Time, net.Conn) int64, conn net.Conn) {
+func synchronizerThread(inChan chan slaveMessage, outChan chan slaveMessage,d time.Duration, f func(time.Time, net.Conn) (int64,int64), conn net.Conn) {
 	counter := 0.0
     var sum float64
  	sum = 0
@@ -111,13 +131,13 @@ func synchronizerThread(inChan chan slaveMessage, outChan chan slaveMessage,d ti
 	for {
         select{
         case x := <-ticker:
-            retVal := f(x, conn)
+            retVal,playTimeServer := f(x, conn)
             counter += 1
             delta = float64(retVal);
             sum += delta
             currentMean := sum/counter;              
             fmt.Printf("current delta: %v, mean:%v\n",retVal,currentMean)
-            outMessage := slaveMessage{MESSAGE_SYNCHRONIZATION_INFO,delta,0.0}
+            outMessage := slaveMessage{MESSAGE_SYNCHRONIZATION_INFO,delta,playTimeServer}
             
             outChan <- outMessage;
         case inCommand = <-inChan:
@@ -126,7 +146,7 @@ func synchronizerThread(inChan chan slaveMessage, outChan chan slaveMessage,d ti
 	}
 }
 
-func sendReceiveToServer(t time.Time, conn net.Conn) int64 {
+func sendReceiveToServer(t time.Time, conn net.Conn) (int64,int64) {
 	text := strconv.FormatInt(time.Now().UnixNano(),10)
 	fmt.Fprintf(conn, text+"\n")
 
@@ -142,17 +162,20 @@ func sendReceiveToServer(t time.Time, conn net.Conn) int64 {
 	t2, _ := strconv.ParseInt(times[1],10,64)
 	t3, _ := strconv.ParseInt(times[2],10,64)
 	t4 := time.Now().UnixNano()
+    playTimeServer, _ := strconv.ParseInt(times[3],10,64)
 
     A := t2 - t1;
     B := t4 - t3;
     delta := (A - B)/ 2.0
-	return delta
+	return delta,playTimeServer
 }
 
 // The main fucntion sets up a connection to a server, creates the channels, and runs the three threads (audio,sync, stateMachine)
 
 func main() {
-    
+    portaudio.Initialize()
+	defer portaudio.Terminate()
+
     // conn, _ := net.Dial("tcp", "[2001::fa1a]:8081")
     numArgs := len(os.Args);
     address :=  "127.0.0.1" 
@@ -178,4 +201,47 @@ func main() {
         slaveStateMachine(audioChan,syncChan,syncControlChan);
       
     }
+}
+
+// audio processing code
+const sampleRate = 48000
+
+type stereoSine struct {
+	*portaudio.Stream
+	stepL, phaseL float64
+	stepR, phaseR float64
+    playDuration time.Duration 
+}
+
+func newStereoSine(freqL, freqR, sampleRate float64, phase float64) *stereoSine {
+	s := &stereoSine{nil, freqL / sampleRate, phase, freqR / sampleRate, phase,time.Duration(250*time.Millisecond)}
+    
+	var err error
+	s.Stream, err = portaudio.OpenDefaultStream(0, 2, sampleRate, 0, s.processAudio)
+	chk(err)
+	return s
+}
+
+func (g *stereoSine) processAudio(out [][]float32) {
+	for i := range out[0] {
+		out[0][i] = float32(math.Sin(2 * math.Pi * g.phaseL))
+		_, g.phaseL = math.Modf(g.phaseL + g.stepL)
+		out[1][i] = float32(math.Sin(2 * math.Pi * g.phaseR))
+		_, g.phaseR = math.Modf(g.phaseR + g.stepR)
+	}
+}
+
+func (g * stereoSine) playAt(unixNano int64) {
+    deadline := time.Unix(0,unixNano)
+    delay := deadline.Sub( time.Now())
+    <-time.After(delay)
+    g.Start();
+    time.Sleep(g.playDuration)
+    g.Stop();
+}
+
+func chk(err error) {
+	if err != nil {
+		panic(err)
+	}
 }
