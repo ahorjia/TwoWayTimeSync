@@ -30,4 +30,8 @@ To run twoWayUDPApps run App2 first
 ===============================================
 Examples:
 http://portaudio.com/docs/v19-doxydocs-dev/group__test__src.html
+===============================================
+FFT
+
+go get github.com/mjibson/go-dsp/fft
 
