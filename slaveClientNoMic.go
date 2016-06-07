@@ -53,7 +53,6 @@ func slaveStateMachine(audioChan chan slaveMessage, syncChan chan slaveMessage, 
     s := newStereoSine(outputFrequency,outputFrequency, sampleRate,0.5)
 	defer s.Close()
 
-
     for {
         switch{
             case myState == STATE_SLAVE_CALIBRATION:
@@ -74,7 +73,7 @@ func slaveStateMachine(audioChan chan slaveMessage, syncChan chan slaveMessage, 
                 if(calibrationDone){
                    syncBeginMessage := slaveMessage{MESSAGE_SYNCHRONIZATION_BEGIN,0,0}
                    syncControlChan <-syncBeginMessage;
-                   nextState = STATE_SLAVE_MEASUREMENT;
+                   nextState =  STATE_SLAVE_CANCELLATION;
                 }
             case myState == STATE_SLAVE_MEASUREMENT:
                 nextState = myState;
@@ -95,7 +94,7 @@ func slaveStateMachine(audioChan chan slaveMessage, syncChan chan slaveMessage, 
                 select{
                 case currentMessage = <-audioChan:
                     fmt.Printf("State %v, audioChan Received: %v,%v\n",myState,currentMessage.data1,currentMessage.data2);
-                    nextState = STATE_SLAVE_MEASUREMENT;
+                    nextState =  STATE_SLAVE_CANCELLATION;
                 case currentMessage = <-syncChan:
                     fmt.Printf("State %v, syncChan Received: %v,%v\n",myState,currentMessage.data1,currentMessage.data2);
                     timeDelta = int64(currentMessage.data1);
@@ -193,7 +192,6 @@ func main() {
          outputFrequency = frequency;
        }
     }
-
     fmt.Printf("Connecting to server address %s\n",address);
     conn, err := net.Dial("tcp", address + ":8081" )
     if(err != nil){
@@ -246,7 +244,7 @@ func (g *stereoSine) processAudio(out [][]float32) {
 }
 
 func (g * stereoSine) playAt(unixNano int64) {
-    precisesleep.SleepUntil64(unixNano);
+    precisesleep.SleepUntil64(unixNano)
     g.phaseL = g.initialPhase;
     g.phaseR = g.initialPhase;
     g.Start();
