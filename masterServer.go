@@ -5,17 +5,27 @@ import "fmt"
 import "bufio"
 import "time"
 import "portaudio"
-
+import "os"
 import "math"
 import "strings"
 import "strconv"
+import "log"
 
+import "precisesleep"
 func main() {
 	fmt.Println("Initializing Audio");
-	
+	outputFrequency := 100.0;
+        var err error
+        if(len(os.Args) >=2) {
+           outputFrequency, err = strconv.ParseFloat(os.Args[1],64)
+           if(err != nil){
+               errorString := fmt.Sprintf("error parsing frequency argument: %v\n",err);
+               log.Fatal(errorString)
+           }
+        }
     portaudio.Initialize()
 	defer portaudio.Terminate()
-    s := newStereoSine(440, 440, sampleRate,0)
+    s := newStereoSine(outputFrequency ,outputFrequency, sampleRate,0)
 	defer s.Close()
     fmt.Println("Launching server...")
 	ln, _ := net.Listen("tcp", ":8081")
@@ -48,6 +58,7 @@ func main() {
 
 
 // audio processing code
+// audio processing code
 const sampleRate = 48000
 
 type stereoSine struct {
@@ -55,16 +66,18 @@ type stereoSine struct {
 	stepL, phaseL float64
 	stepR, phaseR float64
     playDuration time.Duration 
+    initialPhase float64
 }
 
 func newStereoSine(freqL, freqR, sampleRate float64, phase float64) *stereoSine {
-	s := &stereoSine{nil, freqL / sampleRate, phase, freqR / sampleRate, phase,time.Duration(250*time.Millisecond)}
+	s := &stereoSine{nil, freqL / sampleRate, phase, freqR / sampleRate, phase,time.Duration(250*time.Millisecond),phase}
     
 	var err error
 	s.Stream, err = portaudio.OpenDefaultStream(0, 2, sampleRate, 0, s.processAudio)
 	chk(err)
 	return s
 }
+
 
 func (g *stereoSine) processAudio(out [][]float32) {
 	for i := range out[0] {
@@ -76,13 +89,14 @@ func (g *stereoSine) processAudio(out [][]float32) {
 }
 
 func (g * stereoSine) playAt(unixNano int64) {
-    deadline := time.Unix(0,unixNano)
-    delay := deadline.Sub( time.Now())
-    <-time.After(delay)
+    precisesleep.SleepUntil64(unixNano);
+    g.phaseL = g.initialPhase;
+    g.phaseR = g.initialPhase;
     g.Start();
     time.Sleep(g.playDuration)
     g.Stop();
 }
+
 
 func chk(err error) {
 	if err != nil {
